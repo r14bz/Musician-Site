@@ -39,12 +39,20 @@ const iconMap = {
   email: Mail,
 };
 
+function normalizeUrl(value) {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
 export default function SocialIcons({ contact, size = 20 }) {
   const items = [
-    { key: "instagram", href: contact?.instagram },
-    { key: "facebook", href: contact?.facebook },
-    { key: "x", href: contact?.x },
-    { key: "youtube", href: contact?.youtube },
+    { key: "instagram", href: normalizeUrl(contact?.instagram) },
+    { key: "facebook", href: normalizeUrl(contact?.facebook) },
+    { key: "x", href: normalizeUrl(contact?.x) },
+    { key: "youtube", href: normalizeUrl(contact?.youtube) },
     {
       key: "whatsapp",
       href: contact?.whatsapp

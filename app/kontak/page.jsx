@@ -9,6 +9,14 @@ export const metadata = {
   description: "Hubungi saya lewat email, WhatsApp, atau media sosial.",
 };
 
+function normalizeUrl(value) {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
 export default async function KontakPage() {
   const supabase = createServerSupabase();
   const { data: content } = await supabase
@@ -28,10 +36,10 @@ export default async function KontakPage() {
         ? `https://wa.me/${kontak.whatsapp.replace(/\D/g, "")}`
         : null,
     },
-    { label: "Instagram", value: kontak.instagram, href: kontak.instagram },
-    { label: "Facebook", value: kontak.facebook, href: kontak.facebook },
-    { label: "X", value: kontak.x, href: kontak.x },
-    { label: "YouTube", value: kontak.youtube, href: kontak.youtube },
+    { label: "Instagram", value: kontak.instagram, href: normalizeUrl(kontak.instagram) },
+    { label: "Facebook", value: kontak.facebook, href: normalizeUrl(kontak.facebook) },
+    { label: "X", value: kontak.x, href: normalizeUrl(kontak.x) },
+    { label: "YouTube", value: kontak.youtube, href: normalizeUrl(kontak.youtube) },
   ].filter((row) => row.value);
 
   return (
