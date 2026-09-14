@@ -21,7 +21,7 @@ export default async function BerandaPage() {
 
   return (
     <div className="flex flex-col gap-14">
-      <section className="relative flex flex-col md:flex-row items-center gap-8 -mx-6 px-6 pt-4 pb-10">
+      <section className="relative flex flex-col md:flex-row items-center gap-6 -mx-6 px-6 pb-6">
         <div
           aria-hidden
           className="absolute inset-0 -z-10 opacity-30"

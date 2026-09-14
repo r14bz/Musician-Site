@@ -14,7 +14,7 @@ export default function Navbar() {
 
   return (
     <header className="border-b border-border">
-      <nav className="max-w-3xl mx-auto flex items-center justify-center gap-6 px-6 py-4">
+      <nav className="max-w-3xl mx-auto flex items-center justify-center gap-6 px-6 py-3">
         {links.map((link) => (
           <Link
             key={link.href}

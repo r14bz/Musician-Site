@@ -38,6 +38,7 @@ export default function AdminDashboard({ initialSongs, initialContent, initialVi
   const [editingSongId, setEditingSongId] = useState(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [editingLyrics, setEditingLyrics] = useState("");
+  const [coverUploading, setCoverUploading] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
   const [videoUrlInput, setVideoUrlInput] = useState("");
   const [addingVideo, setAddingVideo] = useState(false);
@@ -156,6 +157,47 @@ export default function AdminDashboard({ initialSongs, initialContent, initialVi
     );
     setEditingSongId(null);
     setMessage("Lagu diperbarui.");
+  }
+
+  async function handleUploadSongCover(song, file) {
+    if (!file) return;
+
+    setCoverUploading(true);
+    setMessage("");
+
+    const coverPath = `covers/${Date.now()}-${file.name}`;
+    const { error: uploadError } = await supabase.storage
+      .from("branding")
+      .upload(coverPath, file);
+
+    if (uploadError) {
+      setMessage("Gagal upload cover: " + uploadError.message);
+      setCoverUploading(false);
+      return;
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from("branding")
+      .getPublicUrl(coverPath);
+
+    const { error: updateError } = await supabase
+      .from("songs")
+      .update({ cover_url: publicUrlData.publicUrl })
+      .eq("id", song.id);
+
+    setCoverUploading(false);
+
+    if (updateError) {
+      setMessage("Cover terupload tapi gagal disimpan: " + updateError.message);
+      return;
+    }
+
+    setSongs(
+      songs.map((s) =>
+        s.id === song.id ? { ...s, cover_url: publicUrlData.publicUrl } : s
+      )
+    );
+    setMessage("Cover lagu diperbarui.");
   }
 
   async function handleUploadLogo(e) {
@@ -353,6 +395,34 @@ export default function AdminDashboard({ initialSongs, initialContent, initialVi
               <div key={song.id} className="flex flex-col gap-2 px-4 py-3 text-sm">
                 {editingSongId === song.id ? (
                   <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-3">
+                      {song.cover_url ? (
+                        <img
+                          src={song.cover_url}
+                          alt={song.title}
+                          className="w-14 h-14 rounded-lg object-cover border border-border"
+                        />
+                      ) : (
+                        <div className="w-14 h-14 rounded-lg bg-base border border-border" />
+                      )}
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-muted">
+                          Ganti cover art
+                        </label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          disabled={coverUploading}
+                          onChange={(e) =>
+                            handleUploadSongCover(song, e.target.files[0])
+                          }
+                          className="text-xs text-muted"
+                        />
+                        {coverUploading && (
+                          <p className="text-xs text-muted">Mengupload...</p>
+                        )}
+                      </div>
+                    </div>
                     <input
                       value={editingTitle}
                       onChange={(e) => setEditingTitle(e.target.value)}

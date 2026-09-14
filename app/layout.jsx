@@ -34,7 +34,7 @@ export default function RootLayout({ children }) {
       <body>
         <PlayerProvider>
           <Navbar />
-          <main className="max-w-3xl mx-auto px-6 py-10 pb-24">{children}</main>
+          <main className="max-w-3xl mx-auto px-6 pt-4 pb-24">{children}</main>
           <GlobalPlayer />
         </PlayerProvider>
       </body>
