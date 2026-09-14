@@ -3,22 +3,44 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
-import { Trash2, Upload, LogOut, Pencil, Check, X } from "lucide-react";
+import {
+  Trash2,
+  Upload,
+  LogOut,
+  Pencil,
+  Check,
+  X,
+  PlusCircle,
+} from "lucide-react";
 
-const tabs = ["Lagu", "Beranda", "Profil", "Kontak"];
+const tabs = ["Lagu", "Video", "Beranda", "Profil", "Kontak"];
 
-export default function AdminDashboard({ initialSongs, initialContent }) {
+function extractYoutubeId(input) {
+  const trimmed = input.trim();
+  const match = trimmed.match(
+    /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/
+  );
+  if (match) return match[1];
+  if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) return trimmed;
+  return null;
+}
+
+export default function AdminDashboard({ initialSongs, initialContent, initialVideos }) {
   const router = useRouter();
   const supabase = createClient();
   const [activeTab, setActiveTab] = useState("Lagu");
   const [songs, setSongs] = useState(initialSongs);
+  const [videos, setVideos] = useState(initialVideos || []);
   const [content, setContent] = useState(initialContent);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [editingSongId, setEditingSongId] = useState(null);
   const [editingTitle, setEditingTitle] = useState("");
+  const [editingLyrics, setEditingLyrics] = useState("");
   const [logoUploading, setLogoUploading] = useState(false);
+  const [videoUrlInput, setVideoUrlInput] = useState("");
+  const [addingVideo, setAddingVideo] = useState(false);
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -31,6 +53,8 @@ export default function AdminDashboard({ initialSongs, initialContent }) {
     const form = e.target;
     const title = form.title.value.trim();
     const file = form.file.files[0];
+    const coverFile = form.cover.files[0];
+    const lyrics = form.lyrics.value.trim();
 
     if (!title || !file) {
       setMessage("Judul dan file lagu wajib diisi.");
@@ -55,12 +79,29 @@ export default function AdminDashboard({ initialSongs, initialContent }) {
       .from("songs")
       .getPublicUrl(filePath);
 
+    let coverUrl = null;
+    if (coverFile) {
+      const coverPath = `covers/${Date.now()}-${coverFile.name}`;
+      const { error: coverError } = await supabase.storage
+        .from("branding")
+        .upload(coverPath, coverFile);
+
+      if (!coverError) {
+        const { data: coverPublicUrl } = supabase.storage
+          .from("branding")
+          .getPublicUrl(coverPath);
+        coverUrl = coverPublicUrl.publicUrl;
+      }
+    }
+
     const { data: inserted, error: insertError } = await supabase
       .from("songs")
       .insert({
         title,
         audio_url: publicUrlData.publicUrl,
         file_path: filePath,
+        cover_url: coverUrl,
+        lyrics: lyrics || null,
       })
       .select()
       .single();
@@ -80,14 +121,16 @@ export default function AdminDashboard({ initialSongs, initialContent }) {
   function startEditSong(song) {
     setEditingSongId(song.id);
     setEditingTitle(song.title);
+    setEditingLyrics(song.lyrics || "");
   }
 
   function cancelEditSong() {
     setEditingSongId(null);
     setEditingTitle("");
+    setEditingLyrics("");
   }
 
-  async function handleSaveSongTitle(song) {
+  async function handleSaveSongEdit(song) {
     const newTitle = editingTitle.trim();
     if (!newTitle) {
       setMessage("Judul tidak boleh kosong.");
@@ -96,18 +139,23 @@ export default function AdminDashboard({ initialSongs, initialContent }) {
 
     const { error } = await supabase
       .from("songs")
-      .update({ title: newTitle })
+      .update({ title: newTitle, lyrics: editingLyrics.trim() || null })
       .eq("id", song.id);
 
     if (error) {
-      setMessage("Gagal mengubah judul: " + error.message);
+      setMessage("Gagal menyimpan perubahan: " + error.message);
       return;
     }
 
-    setSongs(songs.map((s) => (s.id === song.id ? { ...s, title: newTitle } : s)));
+    setSongs(
+      songs.map((s) =>
+        s.id === song.id
+          ? { ...s, title: newTitle, lyrics: editingLyrics.trim() || null }
+          : s
+      )
+    );
     setEditingSongId(null);
-    setEditingTitle("");
-    setMessage("Judul lagu diperbarui.");
+    setMessage("Lagu diperbarui.");
   }
 
   async function handleUploadLogo(e) {
@@ -161,6 +209,42 @@ export default function AdminDashboard({ initialSongs, initialContent }) {
     setSongs(songs.filter((s) => s.id !== song.id));
   }
 
+  async function handleAddVideo(e) {
+    e.preventDefault();
+    const youtubeId = extractYoutubeId(videoUrlInput);
+
+    if (!youtubeId) {
+      setMessage("Link atau ID YouTube tidak valid.");
+      return;
+    }
+
+    setAddingVideo(true);
+    setMessage("");
+
+    const { data: inserted, error } = await supabase
+      .from("videos")
+      .insert({ youtube_id: youtubeId })
+      .select()
+      .single();
+
+    setAddingVideo(false);
+
+    if (error) {
+      setMessage("Gagal menambah video: " + error.message);
+      return;
+    }
+
+    setVideos([inserted, ...videos]);
+    setVideoUrlInput("");
+    setMessage("Video ditambahkan.");
+  }
+
+  async function handleDeleteVideo(video) {
+    if (!confirm("Hapus video ini?")) return;
+    await supabase.from("videos").delete().eq("id", video.id);
+    setVideos(videos.filter((v) => v.id !== video.id));
+  }
+
   async function handleSaveContent(key) {
     setSaving(true);
     setMessage("");
@@ -199,12 +283,12 @@ export default function AdminDashboard({ initialSongs, initialContent }) {
         </button>
       </div>
 
-      <div className="flex gap-2 border-b border-border">
+      <div className="flex gap-2 border-b border-border overflow-x-auto">
         {tabs.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-3 py-2 text-sm border-b-2 transition-colors ${
+            className={`px-3 py-2 text-sm border-b-2 whitespace-nowrap transition-colors ${
               activeTab === tab
                 ? "border-accent text-white"
                 : "border-transparent text-muted hover:text-white"
@@ -229,12 +313,31 @@ export default function AdminDashboard({ initialSongs, initialContent }) {
               placeholder="Judul lagu"
               className="bg-base border border-border rounded-lg px-3 py-2 text-sm outline-none focus:border-accent"
             />
+
+            <label className="text-xs text-muted">File audio</label>
             <input
               name="file"
               type="file"
               accept="audio/*"
               className="text-sm text-muted"
             />
+
+            <label className="text-xs text-muted">Cover art (opsional)</label>
+            <input
+              name="cover"
+              type="file"
+              accept="image/*"
+              className="text-sm text-muted"
+            />
+
+            <label className="text-xs text-muted">Lirik (opsional)</label>
+            <textarea
+              name="lyrics"
+              rows={4}
+              placeholder="Tempel lirik lagu di sini..."
+              className="bg-base border border-border rounded-lg px-3 py-2 text-sm outline-none focus:border-accent"
+            />
+
             <button
               type="submit"
               disabled={uploading}
@@ -247,39 +350,45 @@ export default function AdminDashboard({ initialSongs, initialContent }) {
 
           <div className="flex flex-col divide-y divide-border border border-border rounded-xl overflow-hidden">
             {songs.map((song) => (
-              <div
-                key={song.id}
-                className="flex items-center justify-between gap-3 px-4 py-3 text-sm"
-              >
+              <div key={song.id} className="flex flex-col gap-2 px-4 py-3 text-sm">
                 {editingSongId === song.id ? (
-                  <>
+                  <div className="flex flex-col gap-2">
                     <input
                       value={editingTitle}
                       onChange={(e) => setEditingTitle(e.target.value)}
-                      className="flex-1 bg-base border border-border rounded-lg px-2 py-1 text-sm outline-none focus:border-accent"
+                      className="bg-base border border-border rounded-lg px-2 py-1 text-sm outline-none focus:border-accent"
                       autoFocus
                     />
-                    <button
-                      onClick={() => handleSaveSongTitle(song)}
-                      aria-label="Simpan judul"
-                      className="text-accent hover:opacity-80 transition-opacity"
-                    >
-                      <Check size={16} />
-                    </button>
-                    <button
-                      onClick={cancelEditSong}
-                      aria-label="Batal"
-                      className="text-muted hover:text-white transition-colors"
-                    >
-                      <X size={16} />
-                    </button>
-                  </>
+                    <textarea
+                      value={editingLyrics}
+                      onChange={(e) => setEditingLyrics(e.target.value)}
+                      rows={3}
+                      placeholder="Lirik (opsional)"
+                      className="bg-base border border-border rounded-lg px-2 py-1 text-sm outline-none focus:border-accent"
+                    />
+                    <div className="flex gap-2 self-end">
+                      <button
+                        onClick={() => handleSaveSongEdit(song)}
+                        aria-label="Simpan"
+                        className="flex items-center gap-1 text-accent hover:opacity-80 transition-opacity"
+                      >
+                        <Check size={16} /> Simpan
+                      </button>
+                      <button
+                        onClick={cancelEditSong}
+                        aria-label="Batal"
+                        className="flex items-center gap-1 text-muted hover:text-white transition-colors"
+                      >
+                        <X size={16} /> Batal
+                      </button>
+                    </div>
+                  </div>
                 ) : (
-                  <>
+                  <div className="flex items-center justify-between gap-3">
                     <span className="flex-1 truncate">{song.title}</span>
                     <button
                       onClick={() => startEditSong(song)}
-                      aria-label="Edit judul"
+                      aria-label="Edit lagu"
                       className="text-muted hover:text-white transition-colors"
                     >
                       <Pencil size={15} />
@@ -291,12 +400,60 @@ export default function AdminDashboard({ initialSongs, initialContent }) {
                     >
                       <Trash2 size={16} />
                     </button>
-                  </>
+                  </div>
                 )}
               </div>
             ))}
             {songs.length === 0 && (
               <p className="px-4 py-3 text-sm text-muted">Belum ada lagu.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === "Video" && (
+        <div className="flex flex-col gap-6">
+          <form
+            onSubmit={handleAddVideo}
+            className="flex flex-col gap-3 border border-border rounded-xl p-4 bg-surface"
+          >
+            <p className="text-sm font-medium">Tambah video YouTube</p>
+            <input
+              value={videoUrlInput}
+              onChange={(e) => setVideoUrlInput(e.target.value)}
+              placeholder="Tempel link YouTube atau video ID"
+              className="bg-base border border-border rounded-lg px-3 py-2 text-sm outline-none focus:border-accent"
+            />
+            <button
+              type="submit"
+              disabled={addingVideo}
+              className="flex items-center justify-center gap-2 bg-accent text-black text-sm font-medium rounded-lg py-2 hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              <PlusCircle size={15} />
+              {addingVideo ? "Menambahkan..." : "Tambah video"}
+            </button>
+          </form>
+
+          <div className="flex flex-col divide-y divide-border border border-border rounded-xl overflow-hidden">
+            {videos.map((video) => (
+              <div
+                key={video.id}
+                className="flex items-center justify-between px-4 py-3 text-sm"
+              >
+                <span className="truncate font-mono text-xs text-muted">
+                  {video.youtube_id}
+                </span>
+                <button
+                  onClick={() => handleDeleteVideo(video)}
+                  aria-label="Hapus video"
+                  className="text-muted hover:text-red-400 transition-colors"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
+            {videos.length === 0 && (
+              <p className="px-4 py-3 text-sm text-muted">Belum ada video.</p>
             )}
           </div>
         </div>
@@ -309,7 +466,7 @@ export default function AdminDashboard({ initialSongs, initialContent }) {
             <img
               src={content.beranda.logo_url}
               alt="Preview foto beranda"
-              className="w-24 h-24 rounded-full object-cover border border-border"
+              className="w-24 h-32 rounded-2xl object-cover border border-border"
             />
           )}
           <input

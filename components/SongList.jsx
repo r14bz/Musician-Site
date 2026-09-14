@@ -1,7 +1,16 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Play, Pause, Download, Share2 } from "lucide-react";
+import { useState } from "react";
+import Link from "next/link";
+import { Play, Pause, Download, Share2, ChevronDown } from "lucide-react";
+import { usePlayer } from "@/lib/PlayerContext";
+
+function formatPlayCount(count) {
+  const n = count || 0;
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}jt`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}rb`;
+  return `${n}`;
+}
 
 function EqualizerBars() {
   return (
@@ -14,29 +23,11 @@ function EqualizerBars() {
 }
 
 export default function SongList({ songs }) {
-  const [playingId, setPlayingId] = useState(null);
-  const audioRefs = useRef({});
-
-  function togglePlay(song) {
-    const currentAudio = audioRefs.current[song.id];
-
-    Object.entries(audioRefs.current).forEach(([id, audio]) => {
-      if (id !== String(song.id) && audio) {
-        audio.pause();
-      }
-    });
-
-    if (playingId === song.id) {
-      currentAudio.pause();
-      setPlayingId(null);
-    } else {
-      currentAudio.play();
-      setPlayingId(song.id);
-    }
-  }
+  const { currentSong, isPlaying, play } = usePlayer();
+  const [openLyricsId, setOpenLyricsId] = useState(null);
 
   async function handleShare(song) {
-    const shareUrl = `${window.location.origin}/#lagu-${song.id}`;
+    const shareUrl = `${window.location.origin}/lagu/${song.id}`;
 
     if (navigator.share) {
       try {
@@ -46,7 +37,7 @@ export default function SongList({ songs }) {
           url: shareUrl,
         });
       } catch (e) {
-        // dibatalkan oleh user, tidak perlu ditangani
+        // dibatalkan oleh user
       }
     } else {
       await navigator.clipboard.writeText(shareUrl);
@@ -80,55 +71,90 @@ export default function SongList({ songs }) {
       `}</style>
 
       {songs.map((song) => {
-        const isPlaying = playingId === song.id;
+        const isActive = currentSong?.id === song.id;
+        const isThisPlaying = isActive && isPlaying;
+        const lyricsOpen = openLyricsId === song.id;
+
         return (
           <div
             key={song.id}
             id={`lagu-${song.id}`}
-            className={`flex items-center gap-3 border rounded-xl px-4 py-3 bg-surface transition-colors ${
-              isPlaying ? "playing-card" : "border-border"
+            className={`flex flex-col border rounded-xl px-4 py-3 bg-surface transition-colors ${
+              isThisPlaying ? "playing-card" : "border-border"
             }`}
           >
-            <button
-              onClick={() => togglePlay(song)}
-              aria-label={isPlaying ? "Jeda" : "Putar"}
-              className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center transition-colors ${
-                isPlaying
-                  ? "bg-accent text-black"
-                  : "bg-accent/10 text-accent hover:bg-accent/20"
-              }`}
-            >
-              {isPlaying ? <Pause size={16} /> : <Play size={16} />}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => play(song)}
+                aria-label={isThisPlaying ? "Jeda" : "Putar"}
+                className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center transition-colors ${
+                  isThisPlaying
+                    ? "bg-accent text-black"
+                    : "bg-accent/10 text-accent hover:bg-accent/20"
+                }`}
+              >
+                {isThisPlaying ? <Pause size={16} /> : <Play size={16} />}
+              </button>
 
-            <div className="flex-1 min-w-0 flex items-center gap-2">
-              <p className="text-sm truncate">{song.title}</p>
-              {isPlaying && <EqualizerBars />}
+              {song.cover_url ? (
+                <img
+                  src={song.cover_url}
+                  alt={song.title}
+                  className="w-9 h-9 rounded-lg object-cover shrink-0"
+                />
+              ) : (
+                <div className="w-9 h-9 rounded-lg bg-base shrink-0" />
+              )}
+
+              <div className="flex-1 min-w-0 flex items-center gap-2">
+                <Link
+                  href={`/lagu/${song.id}`}
+                  className="text-sm truncate hover:underline"
+                >
+                  {song.title}
+                </Link>
+                {isThisPlaying && <EqualizerBars />}
+              </div>
+
+              <span className="text-xs text-muted font-mono shrink-0">
+                {formatPlayCount(song.play_count)}x
+              </span>
+
+              <a
+                href={song.audio_url}
+                download
+                aria-label="Download"
+                className="text-muted hover:text-white transition-colors"
+              >
+                <Download size={17} />
+              </a>
+
+              <button
+                onClick={() => handleShare(song)}
+                aria-label="Bagikan"
+                className="text-muted hover:text-white transition-colors"
+              >
+                <Share2 size={17} />
+              </button>
+
+              {song.lyrics && (
+                <button
+                  onClick={() => setOpenLyricsId(lyricsOpen ? null : song.id)}
+                  aria-label="Lirik"
+                  className={`transition-transform ${
+                    lyricsOpen ? "rotate-180" : ""
+                  } text-muted hover:text-white`}
+                >
+                  <ChevronDown size={17} />
+                </button>
+              )}
             </div>
 
-            <a
-              href={song.audio_url}
-              download
-              aria-label="Download"
-              className="text-muted hover:text-white transition-colors"
-            >
-              <Download size={17} />
-            </a>
-
-            <button
-              onClick={() => handleShare(song)}
-              aria-label="Bagikan"
-              className="text-muted hover:text-white transition-colors"
-            >
-              <Share2 size={17} />
-            </button>
-
-            <audio
-              ref={(el) => (audioRefs.current[song.id] = el)}
-              src={song.audio_url}
-              onEnded={() => setPlayingId(null)}
-              preload="none"
-            />
+            {lyricsOpen && song.lyrics && (
+              <p className="text-xs text-muted whitespace-pre-line mt-3 pt-3 border-t border-border">
+                {song.lyrics}
+              </p>
+            )}
           </div>
         );
       })}

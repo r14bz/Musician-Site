@@ -11,6 +11,7 @@ module.exports = {
         surface: "#151517",
         border: "#242426",
         accent: "#5EEAD4",
+        accent2: "#EF4444",
         muted: "#8A8A8E",
       },
       fontFamily: {

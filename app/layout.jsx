@@ -1,5 +1,7 @@
 import "./globals.css";
 import Navbar from "@/components/Navbar";
+import GlobalPlayer from "@/components/GlobalPlayer";
+import { PlayerProvider } from "@/lib/PlayerContext";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
@@ -16,7 +18,7 @@ export const metadata = {
     description:
       "Dengarkan lagu-lagu terbaru dari Riabz Microphone.",
     url: siteUrl,
-    siteName: "Namamu",
+    siteName: "Riabz Microphone",
     locale: "id_ID",
     type: "website",
   },
@@ -30,8 +32,11 @@ export default function RootLayout({ children }) {
   return (
     <html lang="id">
       <body>
-        <Navbar />
-        <main className="max-w-3xl mx-auto px-6 py-10">{children}</main>
+        <PlayerProvider>
+          <Navbar />
+          <main className="max-w-3xl mx-auto px-6 py-10 pb-24">{children}</main>
+          <GlobalPlayer />
+        </PlayerProvider>
       </body>
     </html>
   );

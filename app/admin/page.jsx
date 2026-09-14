@@ -8,9 +8,10 @@ export const metadata = {
 export default async function AdminPage() {
   const supabase = createServerSupabase();
 
-  const [{ data: songs }, { data: contentRows }] = await Promise.all([
+  const [{ data: songs }, { data: contentRows }, { data: videos }] = await Promise.all([
     supabase.from("songs").select("*").order("created_at", { ascending: false }),
     supabase.from("site_content").select("key, data"),
+    supabase.from("videos").select("*").order("created_at", { ascending: false }),
   ]);
 
   const content = {};
@@ -19,6 +20,10 @@ export default async function AdminPage() {
   });
 
   return (
-    <AdminDashboard initialSongs={songs || []} initialContent={content} />
+    <AdminDashboard
+      initialSongs={songs || []}
+      initialContent={content}
+      initialVideos={videos || []}
+    />
   );
 }
