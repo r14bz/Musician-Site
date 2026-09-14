@@ -20,13 +20,14 @@ export default async function BerandaPage() {
   return (
     <div className="flex flex-col gap-10">
       <section className="flex flex-col items-center text-center gap-4">
-        <Image
-          src={beranda.logo_url || "/logo.jpg"}
-          alt="Riabz Microphone"
-          width={140}
-          height={140}
-          className="rounded-full object-cover border border-border"
-        />
+        <div className="relative w-40 h-56 rounded-3xl overflow-hidden border border-border bg-surface">
+          <Image
+            src={beranda.logo_url || "/logo.jpg"}
+            alt="Riabz Microphone"
+            fill
+            className="object-cover"
+          />
+        </div>
         <p className="text-sm text-muted max-w-md">{beranda.deskripsi}</p>
       </section>
 
